@@ -28,7 +28,7 @@ module Mollie
   # sms.originator = '0612345678'
   # sms.send(['0687654321', '0612435687'], 'Hello, these are SMSes!')
   class SMS
-    DEFAULT_GATEWAY = "http://www.mollie.nl/xml/sms/"
+    DEFAULT_GATEWAY = "http://www.mollie.nl/xml/"
 
     attr_accessor :username,   # authentication username
                   :password,   # authentication password
@@ -41,6 +41,31 @@ module Mollie
       self.password   = password
       self.originator = hash[:originator] if hash[:originator]
       self.gateway    = hash[:gateway]    if hash[:gateway]
+    end
+  
+    def credit
+        uri = prepare_uri_credits
+    
+        res = Net::HTTP.get_response(uri)
+
+          if res.code.to_i == 200
+            doc = Hpricot(res.body)
+
+            resultcode = (doc/"resultcode").inner_html.to_i
+
+            if resultcode == 10
+                credits = (doc/"credits").inner_html.to_f
+              return credits
+            else
+              raise MollieException.by_code(resultcode)
+
+              return false
+            end
+          else
+            raise MollieException
+
+            return false
+          end
     end
   
     def send(recipients, message)    
@@ -84,7 +109,25 @@ module Mollie
     
       query.reject! { |v| v.nil? }
     
-      uri = URI.parse(self.gateway || DEFAULT_GATEWAY)
+      uri = URI.parse((self.gateway || DEFAULT_GATEWAY) + "sms/")
+      uri.query = query.join('&')
+    
+      uri    
+    end
+    def prepare_uri_credits
+     
+      arguments = {
+        :username   => self.username,
+        :password   => self.password,
+      }
+    
+      query = arguments.map do |key, value|
+        URI.encode(key.to_s) + "=" + URI.encode(value.to_s) if value      
+      end
+    
+      query.reject! { |v| v.nil? }
+    
+      uri = URI.parse((self.gateway || DEFAULT_GATEWAY) + "credits/")
       uri.query = query.join('&')
     
       uri    
